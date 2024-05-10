@@ -23,17 +23,17 @@ import re
 import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
 
-words_df = pd.read_excel(r'C:\Users\einge\Downloads\words.xlsx')
+words_df = pd.read_excel(r'datasets/words.xlsx')
 
-senses_df = pd.read_excel(r'C:\Users\einge\Downloads\senses.xlsx')
+senses_df = pd.read_excel(r'datasets/senses.xlsx')
 
-synsets_df = pd.read_excel(r'C:\Users\einge\Downloads\synsets.xlsx')
+synsets_df = pd.read_excel(r'datasets/synsets.xlsx')
 
 combined_df = pd.merge(words_df, senses_df, on=['wordid'])
 
 filwordnet = pd.merge(combined_df, synsets_df, on=['synsetid'])
 
-tagalog_df = pd.read_csv(r'C:\Users\einge\Downloads\tagalog_dict.csv', header = None, usecols = [0])
+tagalog_df = pd.read_csv(r'datasets/tagalog_dict.csv', header = None, usecols = [0])
 
 class SpellingChecker:
 
