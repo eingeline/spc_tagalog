@@ -4,9 +4,16 @@ Joseph Imperial
 Doctoral Researcher at University of Bath studying Responsible AI.
 Instructor and NLP Researcher at National University.
 
+limitation: only contains 14k words
 source: https://github.com/imperialite/FilWordNetExtractor/tree/master/FilWordNet%20files
 '''
 
+'''
+edit (may 11, 2024, 3:47am):
+    change the dataset. used tagalog_dict.csv.
+    reason: bigger corpus; contains 42.7k words
+    source: https://github.com/raymelon/tagalog-dictionary-scraper/blob/master/tagalog_dict.csv
+'''
 import pandas as pd
 from functools import reduce
 from matplotlib import pyplot as plt
@@ -26,6 +33,7 @@ combined_df = pd.merge(words_df, senses_df, on=['wordid'])
 
 filwordnet = pd.merge(combined_df, synsets_df, on=['synsetid'])
 
+tagalog_df = pd.read_csv(r'C:\Users\einge\Downloads\tagalog_dict.csv', header = None, usecols = [0])
 
 class SpellingChecker:
 
@@ -53,15 +61,18 @@ class SpellingChecker:
             for word in content.split(" "):
 
                 filwordnet_find = []
-                queried = filwordnet[filwordnet['lemma'] == word]
+                queried = tagalog_df[tagalog_df[0] == word]
 
                 for index, row in queried.iterrows():
-                    filwordnet_find.append(row.lemma)
+                    filwordnet_find.append(row[0]) #change row.lemma to row[0]
 
-                if re.sub(r"[^\w]", "", word.lower()) not in filwordnet_find:
+                if re.sub(r"[^\w]", "", word.lower()) not in filwordnet_find: #change the dataset to tagalog_dict.csv
                     position = content.find(word)
                     self.text.tag_add(word, f"1.{position}", f"1.{position + len(word)}")
                     self.text.tag_config(word, foreground="red")
 
 
 SpellingChecker()
+
+#print(tagalog_df.shape)
+#print(tagalog_df.head(10))
