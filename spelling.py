@@ -1,10 +1,5 @@
 import difflib
 import pandas as pd
-from functools import reduce
-from matplotlib import pyplot as plt
-import networkx as nx
-import numpy as np
-import unicodedata
 import json
 import re
 import tkinter as tk
@@ -31,6 +26,8 @@ def normalize_unicode(obj):
     else:
         return obj
 
+''' 
+# part when the dataset is normalized
 with open('datasets/tagalog-words.json') as f:
     dataset = json.load(f)
 
@@ -39,6 +36,7 @@ normalized_data = normalize_unicode(dataset)
 # Save the normalized data to a new JSON file
 with open('datasets/normalized_tagalog-words.json', 'w') as f:
     json.dump(normalized_data, f, indent=4)
+'''
 
 with open('datasets/normalized_tagalog-words.json', ) as f:
     diksiyonaryoph = json.load(f)
