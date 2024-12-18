@@ -1,12 +1,12 @@
-import difflib
 import pandas as pd
 import json
 import re
-import tkinter as tk
-from tkinter.scrolledtext import ScrolledText
+import Levenshtein as lev
+from fuzzywuzzy import fuzz
 
 
 def replace_french_chars(text):
+    """Replace French-specific characters."""
     french_chars = {
         'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a', 'æ': 'ae',
         'ç': 'c', 'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e', 'ì': 'i', 'í': 'i',
@@ -18,7 +18,9 @@ def replace_french_chars(text):
         text = text.replace(char, replacement)
     return text
 
+
 def normalize_unicode(obj):
+    """Normalize strings in the dictionary."""
     if isinstance(obj, dict):
         return {normalize_unicode(key): normalize_unicode(value) for key, value in obj.items()}
     elif isinstance(obj, str):
@@ -26,59 +28,117 @@ def normalize_unicode(obj):
     else:
         return obj
 
-''' 
-# part when the dataset is normalized
-with open('datasets/tagalog-words.json') as f:
-    dataset = json.load(f)
 
-normalized_data = normalize_unicode(dataset)
+def check_spacing_correction(word):
+    """Check if splitting the word produces valid dictionary entries."""
+    for i in range(1, len(word)):
+        first_part = word[:i]
+        second_part = word[i:]
+        if (first_part in maindp['Word'].str.lower().values and
+                second_part in maindp['Word'].str.lower().values):
+            return f"{first_part} {second_part}"
+    return None
 
-# Save the normalized data to a new JSON file
-with open('datasets/normalized_tagalog-words.json', 'w') as f:
-    json.dump(normalized_data, f, indent=4)
-'''
 
-with open('datasets/normalized_tagalog-words.json', ) as f:
+def check_merge_correction(first_word, second_word):
+    """Check if merging two words creates a valid dictionary entry."""
+    combined_word = first_word + second_word
+    if combined_word in maindp['Word'].str.lower().values:
+        return combined_word
+    return None
+
+
+shortcut_dict = {
+    "bat": "bakpt",
+    "ba't": "bakpt",
+    "lng": "ling",
+    "mgl": "magaoling",
+    "ok": "okry",
+    "kc": "kas1",
+    "d2": "dit0",
+    "Knp": "Kanin1",
+    "wla": "wola",
+    "cge": "s1gi",
+    "pnta": "pvnta",
+    "cguro": "s1guro"
+}
+
+
+def replace_shortcuts(word):
+    """Replace shortcut words with their full form."""
+    return shortcut_dict.get(word.lower(), word)
+
+
+def spell_check(misspelled_df, column_name):
+    """Process misspelled words for corrections."""
+    n = 0  # Track corrections made
+    for index, row in misspelled_df.iterrows():
+        text = row[column_name]
+        words = text.split(" ")
+        corrected_words = words[:]
+
+        i = 0
+        while i < len(corrected_words):
+
+            normalized_word = re.sub(r"[^\w]", "", replace_french_chars(corrected_words[i].lower()))
+            cleaned_word = replace_shortcuts(normalized_word.lower())
+
+            threshold = 2 if len(cleaned_word) < 5 else len(cleaned_word) // 2
+
+
+            # Prioritize merge correction
+            if i < len(corrected_words) - 1:
+                merge_correction = check_merge_correction(corrected_words[i], corrected_words[i + 1])
+                if merge_correction:
+                    corrected_words[i] = merge_correction
+                    corrected_words.pop(i + 1)  # Remove the second word after merging
+                    print(f"\nSpacing correction (merge): '{text}' corrected to '{merge_correction}'")
+                    continue  # Skip to the next word after merging
+
+            # Check if the word is misspelled
+            if cleaned_word not in maindp['Word'].str.lower().values:
+                # Calculate similarity scores
+                distances_lev = {dict_word: lev.distance(cleaned_word, dict_word) for dict_word in
+                                 maindp['Word'].str.lower().values}
+                distances_fuzz = {dict_word: fuzz.ratio(cleaned_word, dict_word) for dict_word in
+                                  maindp['Word'].str.lower().values}
+
+                combined_matches = {word: (distances_lev[word] + (100 - distances_fuzz[word]) / 50)
+                                    for word in maindp['Word'].str.lower().values}
+
+                closest_matches = sorted(combined_matches.items(), key=lambda x: x[1])[:5]
+                matches = [match[0] for match in closest_matches if match[1] <= threshold]
+
+                # Check for spacing correction (split)
+                spacing_correction = check_spacing_correction(cleaned_word)
+                if spacing_correction:
+                    corrected_words[i] = spacing_correction
+                    print(f"\nSpacing correction (split): '{text}' split to '{spacing_correction}'")
+
+                # Suggest spelling corrections
+                if matches:
+                    print(f"Word: {text} - Suggested corrections: {', '.join(matches)}\n")
+                else:
+                    print(f"Word: {text} - No suggestions found.\n")
+            else:
+                print("The word is correct. Word: " + cleaned_word + "\n")
+
+            i += 1  # Increment index
+        n += 1  # Increment correction count
+
+    print(f"Total corrections made: {n}")
+
+
+# Main program
+with open('datasets/final_tagalog-dictionary.json', encoding='utf-8') as f:
     diksiyonaryoph = json.load(f)
 
-df = pd.DataFrame(diksiyonaryoph)
-transpose_dp = df.transpose()
-maindp = transpose_dp.reset_index()
+# DataFrame for the dictionary dataset
+maindp = pd.DataFrame(diksiyonaryoph)
 
+# DataFrame for the testing dataset
+misspelled_dataset = 'datasets/misspelled words.xlsx'
+column_name = 'row1'
 
-class SpellingChecker:
-
-    def __init__(self):
-        self.root = tk.Tk()
-        self.root.geometry("600x500")
-
-        self.text = ScrolledText(self.root, font=("Arial", 14))
-        self.text.bind("<KeyRelease>", self.check)
-        self.text.pack()
-
-        self.old_spaces = 0
-
-        self.root.mainloop()
-
-    def check(self, event):
-        content = self.text.get("1.0", tk.END)
-        space_count = content.count(" ")
-
-        for tag in self.text.tag_names():
-            self.text.tag_delete(tag)
-
-        if space_count != self.old_spaces:
-            self.old_spaces = space_count
-            for word in content.split(" "):
-                word = re.sub(r"[^\w]", "", replace_french_chars(word.lower()))
-                if word not in maindp['index'].str.lower().values:
-                    matches = difflib.get_close_matches(word, maindp['index'].str.lower().values, n=3, cutoff=0.5)
-                    if matches:
-                        position = content.find(word)
-                        self.text.tag_add(word, f"1.{position}", f"1.{position + len(word)}")
-                        self.text.tag_config(word, foreground="red")
-                        suggestion = ", suggested correction(s): " + ", ".join(matches)
-                        self.text.insert(tk.END, suggestion)
-
-
-SpellingChecker()
+misspelled_df = pd.read_excel(misspelled_dataset)
+spell_check(misspelled_df, column_name)
